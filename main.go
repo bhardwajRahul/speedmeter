@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/getlantern/systray"
 	"github.com/prometheus/procfs"
 )
 
@@ -24,7 +25,12 @@ func getInterface() string {
 	return ipInterface
 }
 
-func getBytes(p procfs.Proc, ipInterface string) (uint64, uint64) {
+func getBytes() (uint64, uint64) {
+	p, err := procfs.Self()
+	if err != nil {
+		log.Fatalf("could not get process: %s", err)
+	}
+	ipInterface := getInterface()
 	stat, err := p.NetDev()
 	if err != nil {
 		log.Fatalf("could not fetch net stats: %s", err)
@@ -33,18 +39,30 @@ func getBytes(p procfs.Proc, ipInterface string) (uint64, uint64) {
 	return lo.RxBytes, lo.TxBytes
 }
 
+func onReady() {
+	go func() {
+		rInit, tInit := getBytes()
+		for {
+			r, t := getBytes()
+			rDiff, tDiff := r-rInit, t-tInit
+			rInit, tInit = r, t
+			systray.SetTitle(fmt.Sprintf("Download: %d KBps, Upload: %d KBps\n", rDiff/1024, tDiff/1024))
+			time.Sleep(1 * time.Second)
+		}
+	}()
+	systray.AddSeparator()
+	mQuit := systray.AddMenuItem("Quit", "Quits this app")
+	go func() {
+		for {
+			select {
+			case <-mQuit.ClickedCh:
+				systray.Quit()
+				return
+			}
+		}
+	}()
+}
+
 func main() {
-	p, err := procfs.Self()
-	if err != nil {
-		log.Fatalf("could not get process: %s", err)
-	}
-	ipInterface := getInterface()
-	rInit, tInit := getBytes(p, ipInterface)
-	for {
-		r, t := getBytes(p, ipInterface)
-		rDiff, tDiff := r-rInit, t-tInit
-		fmt.Printf("Download speed: %d KBps, Upload speed: %d KBps\n", rDiff/1024, tDiff/1024)
-		rInit, tInit = r, t
-		time.Sleep(1 * time.Second)
-	}
+	systray.Run(onReady, nil)
 }
