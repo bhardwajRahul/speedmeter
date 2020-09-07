@@ -9,12 +9,11 @@
 #### Build from source
 ```bash
 git clone https://github.com/amalshaji/speedmeter
-```
 cd speedmeter
-
 go build 
-
 ./speedmeter
+```
+
 
 #### Screenshot
 ![speedmeter](speedmeter.jpg)
